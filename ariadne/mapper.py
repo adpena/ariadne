@@ -84,13 +84,21 @@ def _jsonpath_for_path(path: Path) -> str:
             expr += f"[{repr(part)}]"
     return expr
 
-def generate_helpers(mappings: Mappings, func_prefix: str = "get_") -> str:
+def generate_helpers(
+    mappings: Mappings,
+    func_prefix: str = "get_",
+    output_file: str = None
+) -> str:
     """
     Generates a Python script containing helper functions from path mappings.
+
+    This version includes a custom exception for robust error handling and can
+    optionally write the output directly to a file.
 
     Args:
         mappings: A dictionary mapping placeholder tags to their paths.
         func_prefix: The prefix to use for the generated helper functions.
+        output_file: Optional. A file path to write the generated code to.
 
     Returns:
         A string containing the generated Python code.
@@ -98,35 +106,46 @@ def generate_helpers(mappings: Mappings, func_prefix: str = "get_") -> str:
     code_lines = [
         "from typing import Any, Dict, List, Union",
         "",
-        "def get_data(data: Union[Dict, List], path: tuple, default: Any = None) -> Any:",
-        "    \"\"\"Safely access nested data using a path tuple.\"\"\"",
+        "class JSONPathNotFoundError(KeyError):",
+        '    """Custom exception raised when a path is not found in the data."""',
+        "    pass",
+        "",
+        "def _get_data(data: Union[Dict, List], path: tuple, friendly_name: str) -> Any:",
+        '    """Safely access nested data, raising a custom error on failure."""',
         "    for key in path:",
         "        try:",
         "            data = data[key]",
         "        except (KeyError, IndexError, TypeError):",
-        "            return default",
+        "            raise JSONPathNotFoundError(",
+        "                f\"Could not find '{friendly_name}'. The path {path} was not found in the object.\"",
+        "            )",
         "    return data",
         "",
     ]
     for tag, path in sorted(mappings.items()):
-        # Clean the tag to create a valid Python function name
         clean_tag = tag.replace(SENTINEL_PREFIX, "", 1)
         func_name = f"{func_prefix}{clean_tag}"
         py_expr_str = _python_expr_for_path(path, "obj")
         jp_expr_str = _jsonpath_for_path(path)
 
-        docstring = f'"""Gets data from path: {py_expr_str}"""'
+        docstring = f'"""Gets data for \'{clean_tag}\' from path: {py_expr_str}"""'
 
         func_def = [
             f"def {func_name}(obj: Union[Dict, List]) -> Any:",
             f"    {docstring}",
             f"    # JSONPath equivalent: {jp_expr_str}",
-            f"    return get_data(obj, {path})",
+            f"    return _get_data(obj, {path}, '{clean_tag}')",
             "",
         ]
         code_lines.extend(func_def)
 
-    return "\n".join(code_lines)
+    code_string = "\n".join(code_lines)
+
+    if output_file:
+        with open(output_file, 'w') as f:
+            f.write(code_string)
+
+    return code_string
 
 def generate_code_from_files(control_file: str, annotated_file: str) -> str:
     """

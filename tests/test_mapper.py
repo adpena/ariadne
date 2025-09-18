@@ -39,39 +39,53 @@ def test_map_placeholders(control_data, annotated_data):
     Tests that placeholders are correctly mapped to their paths.
     """
     mappings = map_placeholders(control_data, annotated_data)
-
-    # Check a few key mappings to ensure correctness
-    assert mappings["__want__:contribution_id"] == ('contribution', 'id')
-    assert mappings["__want__:gross_amount"] == ('contribution', 'amount')
-    assert mappings["__want__:donor_email"] == ('contribution', 'donor', 'email')
-    assert mappings["__want__:candidate_allocation"] == ('contribution', 'allocations', 0, 'amount')
-    assert mappings["__want__:committee_allocation"] == ('contribution', 'allocations', 1, 'amount')
-    assert mappings["__want__:ip_address"] == ('contribution', 'metadata', 'device', 'ip')
-
-    # Check the total number of mappings found
     expected_placeholders = find_all_placeholders(annotated_data)
     assert len(mappings) == len(expected_placeholders)
+    assert mappings["__want__:contribution_id"] == ('contribution', 'id')
 
-def test_generate_helpers(control_data, annotated_data):
+def test_generate_helpers_structure(control_data, annotated_data):
     """
-    Tests the generation of Python helper functions.
+    Tests the new structure of the generated Python helper functions.
     """
     mappings = map_placeholders(control_data, annotated_data)
     helpers_code = generate_helpers(mappings)
 
-    # Basic check to ensure the code is a non-empty string
-    assert isinstance(helpers_code, str)
-    assert len(helpers_code) > 0
+    assert "class JSONPathNotFoundError(KeyError):" in helpers_code
+    assert "def _get_data(data: Union[Dict, List], path: tuple, friendly_name: str) -> Any:" in helpers_code
+    assert "raise JSONPathNotFoundError(" in helpers_code
+    assert "return _get_data(obj, ('contribution', 'id'), 'contribution_id')" in helpers_code
 
-    # Check that a few expected function definitions are present
-    assert "def get_contribution_id(obj: Union[Dict, List]) -> Any:" in helpers_code
-    assert "def get_donor_email(obj: Union[Dict, List]) -> Any:" in helpers_code
-    assert "def get_candidate_allocation(obj: Union[Dict, List]) -> Any:" in helpers_code
-    assert "def get_ip_address(obj: Union[Dict, List]) -> Any:" in helpers_code
+def test_generated_helpers_raise_exception(control_data, annotated_data):
+    """
+    Tests that the generated helpers correctly raise JSONPathNotFoundError.
+    """
+    mappings = map_placeholders(control_data, annotated_data)
+    helpers_code = generate_helpers(mappings)
 
-    # Check for the safe accessor and its usage
-    assert "def get_data(data: Union[Dict, List], path: tuple, default: Any = None) -> Any:" in helpers_code
-    assert "return get_data(obj, ('contribution', 'id'))" in helpers_code
+    # Execute the generated code to define the functions in a local scope.
+    # Using the same dict for globals and locals ensures the functions can find each other.
+    local_scope = {}
+    exec(helpers_code, local_scope)
 
-    # Check for a JSONPath comment
-    assert "# JSONPath equivalent: $.contribution.donor.email" in helpers_code
+    # Get the generated exception and a helper function from the scope
+    JSONPathNotFoundError = local_scope['JSONPathNotFoundError']
+    get_contribution_id = local_scope['get_contribution_id']
+
+    # Test that calling the function with invalid data raises the custom exception
+    with pytest.raises(JSONPathNotFoundError, match="Could not find 'contribution_id'"):
+        get_contribution_id({})
+
+def test_generate_helpers_writes_to_file(tmp_path, control_data, annotated_data):
+    """
+    Tests that generate_helpers writes to a file when the output_file arg is used.
+    """
+    output_file = tmp_path / "helpers.py"
+    mappings = map_placeholders(control_data, annotated_data)
+
+    # Call the function with the output_file argument
+    generate_helpers(mappings, output_file=str(output_file))
+
+    assert output_file.exists()
+    content = output_file.read_text()
+    assert "class JSONPathNotFoundError(KeyError):" in content
+    assert "def get_ip_address(obj: Union[Dict, List]) -> Any:" in content

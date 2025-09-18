@@ -32,12 +32,31 @@ def map_placeholders(
     diff = DeepDiff(control, annotated, view='tree')
     mappings: Mappings = {}
 
-    # This change type handles cases where a value was replaced by a placeholder.
-    for change in getattr(diff, 'values_changed', []):
-        new_value = change.t2
-        if isinstance(new_value, str) and new_value.startswith(prefix):
-            path_elems = change.path(output_format='list')
-            mappings[new_value] = tuple(path_elems)
+    change_types = [
+        'values_changed',
+        'type_changes',
+        'dictionary_item_added',
+        'iterable_item_added'
+    ]
+
+    def get_value_by_path(data, path):
+        for key in path:
+            try:
+                data = data[key]
+            except (KeyError, IndexError, TypeError):
+                return None
+        return data
+
+    for change_type in change_types:
+        for change in diff.get(change_type, []):
+            path_list = change.path(output_format='list')
+
+            # Use the path to look up the value in the annotated object.
+            # This is more robust than relying on change.t2.
+            new_value = get_value_by_path(annotated, path_list)
+
+            if isinstance(new_value, str) and new_value.startswith(prefix):
+                mappings[new_value] = tuple(path_list)
 
     return mappings
 

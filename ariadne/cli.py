@@ -9,8 +9,8 @@ def main():
         description="Generate Python helper functions to access data in a JSON object.",
         epilog="""
         Example Usage:
-        jxbe control.json annotated.json
-        jxbe control.json annotated.json -o helpers.py
+        ariadne control.json annotated.json
+        ariadne control.json annotated.json -o helpers.py
         """
     )
     parser.add_argument(

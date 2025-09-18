@@ -11,9 +11,9 @@ def test_cli_prints_to_stdout(capsys):
     """
     Tests that the CLI prints to stdout by default.
     """
-    # The 'jxbe' command is installed as a script via pyproject.toml
+    # The 'ariadne' command is installed as a script via pyproject.toml
     result = subprocess.run(
-        ["jxbe", CONTROL_JSON_PATH, ANNOTATED_JSON_PATH],
+        ["ariadne", CONTROL_JSON_PATH, ANNOTATED_JSON_PATH],
         capture_output=True,
         text=True
     )
@@ -29,7 +29,7 @@ def test_cli_writes_to_output_file(tmp_path):
     output_file = tmp_path / "helpers.py"
 
     result = subprocess.run(
-        ["jxbe", CONTROL_JSON_PATH, ANNOTATED_JSON_PATH, "--output", str(output_file)],
+        ["ariadne", CONTROL_JSON_PATH, ANNOTATED_JSON_PATH, "--output", str(output_file)],
         capture_output=True,
         text=True
     )

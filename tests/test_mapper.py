@@ -1,7 +1,7 @@
 import json
 import pytest
 from pathlib import Path
-from json_by_example.mapper import map_placeholders, generate_helpers
+from ariadne.mapper import map_placeholders, generate_helpers
 
 # Define the paths to the fixture files
 FIXTURE_DIR = Path(__file__).parent / "fixtures"
